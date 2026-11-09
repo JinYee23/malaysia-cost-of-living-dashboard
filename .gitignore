@@ -1,0 +1,17 @@
+# Secrets: real credentials never go in Git (.env.example is tracked)
+.env
+
+# Python environment: rebuilt from requirements.txt
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+
+# Downloaded source data: rebuilt by the ingest script
+data/raw/*
+!data/raw/.gitkeep
+
+# Large fact table exports: rebuilt by the pipeline
+outputs/csv/fact_*.csv
+
+# Personal learning notes
+.vibe-wise/
