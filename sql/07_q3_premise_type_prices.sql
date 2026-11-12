@@ -14,11 +14,14 @@
 --   4. Each premise type is summarised by the median of its % differences across cells,
 --      so every item-and-state cell gets an equal say.
 --
+-- Saves the cell-level comparison to report.q3_type_vs_cell for Power BI, then summarises it.
 -- Run with: psql -f sql/07_q3_premise_type_prices.sql
 
--- One row per cell and premise type, with its % difference from the cell benchmark.
--- A TEMP view only exists for this session, so nothing is saved in the database.
-CREATE TEMP VIEW type_vs_cell AS
+-- One row per cell and premise type, with its % difference from the cell benchmark,
+-- saved for Power BI. Dropped and rebuilt in one transaction, so it is safe to re-run.
+BEGIN;
+DROP TABLE IF EXISTS report.q3_type_vs_cell;
+CREATE TABLE report.q3_type_vs_cell AS
 WITH premise_price AS (
     -- Step 1: one price per premise and item
     SELECT
@@ -70,6 +73,8 @@ SELECT
 FROM type_in_cell AS t
 JOIN comparable_cell AS c ON c.item_code = t.item_code AND c.state = t.state
 JOIN cell_benchmark AS b ON b.item_code = t.item_code AND b.state = t.state;
+ALTER TABLE report.q3_type_vs_cell ADD PRIMARY KEY (item_code, state, premise_type);
+COMMIT;
 
 
 -- 1. Premise types ranked from cheapest to most expensive, relative to the local median.
@@ -82,7 +87,7 @@ SELECT
     count(*) AS cells,
     count(DISTINCT item_code) AS items,
     count(DISTINCT state) AS states
-FROM type_vs_cell
+FROM report.q3_type_vs_cell
 GROUP BY premise_type
 ORDER BY rank_cheapest;
 
@@ -94,7 +99,7 @@ SELECT
     v.premise_type,
     round(percentile_cont(0.5) WITHIN GROUP (ORDER BY v.pct_diff)::numeric, 1) AS median_pct_vs_local,
     count(*) AS cells
-FROM type_vs_cell AS v
+FROM report.q3_type_vs_cell AS v
 JOIN mart.dim_item AS i ON i.item_code = v.item_code
 GROUP BY i.item_group, v.premise_type
 ORDER BY i.item_group, median_pct_vs_local;

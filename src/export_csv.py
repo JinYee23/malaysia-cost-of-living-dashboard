@@ -1,4 +1,4 @@
-"""Export every mart table to outputs/csv/ as a backup for Power BI and other tools.
+"""Export the mart and report tables to outputs/csv/ as a backup for Power BI and other tools.
 
 Uses COPY ... TO STDOUT, the reverse of the loader, so even the 22M-row price table
 exports quickly. Each file is overwritten on every run.
@@ -14,15 +14,18 @@ from dotenv import load_dotenv
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 OUT_DIR = PROJECT_DIR / "outputs" / "csv"
 
-# Dimensions first, then facts
+# (schema, table): mart dimensions first, then facts, then the saved analysis results
 TABLES = [
-    "dim_date",
-    "dim_state",
-    "dim_division",
-    "dim_item",
-    "dim_premise",
-    "fact_cpi",
-    "fact_prices",
+    ("mart", "dim_date"),
+    ("mart", "dim_state"),
+    ("mart", "dim_division"),
+    ("mart", "dim_item"),
+    ("mart", "dim_premise"),
+    ("mart", "fact_cpi"),
+    ("mart", "fact_prices"),
+    ("report", "q2_item_change"),
+    ("report", "q3_type_vs_cell"),
+    ("report", "basket_item"),
 ]
 
 
@@ -35,23 +38,27 @@ def count_data_lines(path):
     return lines - 1
 
 
-def export_table(cur, table):
-    """Write mart.<table> to outputs/csv/<table>.csv with a header row, then check it."""
-    path = OUT_DIR / f"{table}.csv"
+def export_table(cur, schema, table):
+    """Write <schema>.<table> to a CSV with a header row, then check its row count.
+
+    Mart tables keep their own name (dim_item.csv); report tables get a prefix
+    (report_q2_item_change.csv) so it is clear they are analysis results.
+    """
+    path = OUT_DIR / (f"{table}.csv" if schema == "mart" else f"{schema}_{table}.csv")
     start = time.perf_counter()
 
     with path.open("wb") as f:
-        with cur.copy(f"COPY mart.{table} TO STDOUT (FORMAT csv, HEADER)") as copy:
+        with cur.copy(f"COPY {schema}.{table} TO STDOUT (FORMAT csv, HEADER)") as copy:
             for data in copy:
                 f.write(data)
 
-    table_rows = cur.execute(f"SELECT count(*) FROM mart.{table}").fetchone()[0]
+    table_rows = cur.execute(f"SELECT count(*) FROM {schema}.{table}").fetchone()[0]
     file_rows = count_data_lines(path)
     size_mb = path.stat().st_size / 1024 / 1024
     seconds = time.perf_counter() - start
     print(f"{path.name}: {file_rows:,} rows, {size_mb:,.1f} MB in {seconds:.1f}s")
     if file_rows != table_rows:
-        raise RuntimeError(f"{path.name}: wrote {file_rows:,} rows but mart.{table} has {table_rows:,}")
+        raise RuntimeError(f"{path.name}: wrote {file_rows:,} rows but {schema}.{table} has {table_rows:,}")
 
 
 if __name__ == "__main__":
@@ -59,5 +66,5 @@ if __name__ == "__main__":
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     with psycopg.connect() as conn, conn.cursor() as cur:
-        for table in TABLES:
-            export_table(cur, table)
+        for schema, table in TABLES:
+            export_table(cur, schema, table)

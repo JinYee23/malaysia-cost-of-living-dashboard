@@ -17,8 +17,11 @@
 --
 -- Run with: psql -f sql/08_q4_basket_cost.sql
 
--- The basket. A TEMP view only exists for this session; nothing is saved in the database.
-CREATE TEMP VIEW basket AS
+-- The basket, saved as report.basket_item so Power BI's DAX uses the same 10 items.
+-- Dropped and rebuilt in one transaction, so it is safe to re-run.
+BEGIN;
+DROP TABLE IF EXISTS report.basket_item;
+CREATE TABLE report.basket_item AS
 SELECT * FROM (VALUES
     (2066, 'Rice, Faiza Emas 10 kg'),
     (1110, 'Eggs, Grade B 30'),
@@ -31,6 +34,8 @@ SELECT * FROM (VALUES
     (1476, 'Fish, ikan kembung 1 kg'),
     (180,  'Tea, Boh 100 bags')
 ) AS b (item_code, label);
+ALTER TABLE report.basket_item ADD PRIMARY KEY (item_code);
+COMMIT;
 
 -- Each state's price for each basket item over the whole period (rules 1 and 2).
 CREATE TEMP VIEW item_state AS
@@ -41,7 +46,7 @@ WITH premise_price AS (
         p.state,
         percentile_cont(0.5) WITHIN GROUP (ORDER BY f.price) AS price
     FROM mart.fact_prices AS f
-    JOIN basket AS b ON b.item_code = f.item_code
+    JOIN report.basket_item AS b ON b.item_code = f.item_code
     JOIN mart.dim_premise AS p ON p.premise_code = f.premise_code
     GROUP BY f.item_code, f.premise_code, p.state
 )
@@ -59,7 +64,7 @@ SELECT state
 FROM item_state
 WHERE premises >= 5
 GROUP BY state
-HAVING count(*) = (SELECT count(*) FROM basket);
+HAVING count(*) = (SELECT count(*) FROM report.basket_item);
 
 
 -- 1. Excluded states and why: every basket item with fewer than 5 premises in that state.
@@ -68,7 +73,7 @@ SELECT
     s.state,
     string_agg(b.label || ' (' || coalesce(i.premises, 0) || ' premises)', '; ' ORDER BY b.label) AS too_few_premises
 FROM mart.dim_state AS s
-CROSS JOIN basket AS b
+CROSS JOIN report.basket_item AS b
 LEFT JOIN item_state AS i ON i.state = s.state AND i.item_code = b.item_code
 WHERE coalesce(i.premises, 0) < 5
 GROUP BY s.state
@@ -100,7 +105,7 @@ premise_month AS (
         d.month_start,
         percentile_cont(0.5) WITHIN GROUP (ORDER BY f.price) AS price
     FROM mart.fact_prices AS f
-    JOIN basket AS b ON b.item_code = f.item_code
+    JOIN report.basket_item AS b ON b.item_code = f.item_code
     JOIN mart.dim_premise AS p ON p.premise_code = f.premise_code
     JOIN mart.dim_date AS d ON d.date = f.date
     CROSS JOIN months AS m
@@ -133,7 +138,7 @@ state_basket AS (
         sum(end_price) AS end_cost
     FROM matched_item_state
     GROUP BY state
-    HAVING count(*) = (SELECT count(*) FROM basket)
+    HAVING count(*) = (SELECT count(*) FROM report.basket_item)
 )
 SELECT
     RANK() OVER (ORDER BY end_cost / start_cost DESC) AS rank_largest_rise,
@@ -153,6 +158,6 @@ SELECT
     i.premises,
     round(i.median_price::numeric, 2) AS median_price_rm
 FROM item_state AS i
-JOIN basket AS b ON b.item_code = i.item_code
+JOIN report.basket_item AS b ON b.item_code = i.item_code
 WHERE i.state IN (SELECT state FROM qualifying_state)
 ORDER BY i.state, b.label;

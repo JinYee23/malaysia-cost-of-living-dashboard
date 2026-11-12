@@ -13,11 +13,14 @@
 --
 -- Caution: two months apart is short; large changes may be seasonal rather than lasting.
 --
+-- Saves every ranked item to report.q2_item_change for Power BI, then lists the top movers.
 -- Run with: psql -f sql/06_q2_item_price_change.sql
 
--- One row per item with its matched-premise price change. A TEMP view only exists for
--- this session, so nothing is saved in the database.
-CREATE TEMP VIEW item_change AS
+-- One row per item with its matched-premise price change, saved for Power BI.
+-- Dropped and rebuilt in one transaction, so it is safe to re-run.
+BEGIN;
+DROP TABLE IF EXISTS report.q2_item_change;
+CREATE TABLE report.q2_item_change AS
 WITH months AS (
     -- First and last month in the price data, found from the data rather than typed in
     SELECT min(d.month_start) AS first_month, max(d.month_start) AS last_month
@@ -66,6 +69,8 @@ FROM matched AS mt
 JOIN mart.dim_item AS i ON i.item_code = mt.item_code
 GROUP BY i.item_code, i.item, i.unit
 HAVING count(*) >= 30;   -- Step 4: enough matched premises
+ALTER TABLE report.q2_item_change ADD PRIMARY KEY (item_code);
+COMMIT;
 
 
 -- 1. Top 10 items with the largest price rises.
@@ -76,7 +81,7 @@ FROM (
         RANK() OVER (ORDER BY median_change_pct DESC) AS rank,
         item, unit, matched_premises,
         median_start_price, median_end_price, median_change_rm, median_change_pct
-    FROM item_change
+    FROM report.q2_item_change
 ) AS ranked
 WHERE rank <= 10
 ORDER BY rank, item;
@@ -89,7 +94,7 @@ FROM (
         RANK() OVER (ORDER BY median_change_pct ASC) AS rank,
         item, unit, matched_premises,
         median_start_price, median_end_price, median_change_rm, median_change_pct
-    FROM item_change
+    FROM report.q2_item_change
 ) AS ranked
 WHERE rank <= 10
 ORDER BY rank, item;
