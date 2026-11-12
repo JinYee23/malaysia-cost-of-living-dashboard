@@ -82,10 +82,10 @@ ALTER TABLE mart.dim_date ADD PRIMARY KEY (date);
 -- Prices: one item's price at one premise on one day.
 -- numeric(10,2) stores prices as exact decimals, avoiding floating-point rounding.
 --
--- Only prices for items described in the item lookup are kept. In Jul-Sep 2026,
--- 14 item codes first recorded on 6 July 2026 (83,768 rows, 1.5%) are not in DOSM's
--- lookup yet, so they cannot be named in any analysis. They stay in raw and clean,
--- and return here automatically once DOSM adds them to the lookup.
+-- Only prices for items described in the item lookup are kept. In Sep 2025 - Sep 2026,
+-- 17 item codes (337,456 rows, 1.5%) are not in DOSM's lookup yet, so they cannot be
+-- named in any analysis. They stay in raw and clean, and return here automatically
+-- once DOSM adds them to the lookup.
 CREATE TABLE mart.fact_prices AS
 SELECT p.date, p.premise_code, p.item_code, p.price::numeric(10, 2) AS price
 FROM clean.prices AS p
