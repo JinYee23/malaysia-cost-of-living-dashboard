@@ -3,3 +3,4 @@ pyarrow
 python-dotenv
 requests
 jupyter
+psycopg[binary]
