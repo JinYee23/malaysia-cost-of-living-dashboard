@@ -12,7 +12,7 @@ LOOKUP_PREMISE_URL = "https://storage.data.gov.my/pricecatcher/lookup_premise.pa
 MCOICOP_URL = "https://storage.dosm.gov.my/dictionaries/mcoicop.parquet"
 
 # Finished months to download. Add months here to scale up.
-PRICECATCHER_MONTHS = ["2026-08", "2026-09", "2026-10"]
+PRICECATCHER_MONTHS = ["2026-07", "2026-08", "2026-09"]
 
 
 def download_file(url, destination):
