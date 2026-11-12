@@ -55,14 +55,26 @@ ALTER TABLE mart.dim_premise ADD FOREIGN KEY (state) REFERENCES mart.dim_state (
 
 -- Dates: one row per day covering both CPI (monthly, from 2010) and prices (daily).
 -- CPI months are stored as the first day of the month, so they join on date too.
+-- The range comes from the data itself: from the first month in either table to the
+-- last day of the latest month. Adding months to the pipeline needs no change here.
 CREATE TABLE mart.dim_date AS
+WITH bounds AS (
+    SELECT
+        least((SELECT min(date) FROM clean.cpi), (SELECT min(date) FROM clean.prices))    AS first_date,
+        greatest((SELECT max(date) FROM clean.cpi), (SELECT max(date) FROM clean.prices)) AS last_date
+)
 SELECT
     d::date                         AS date,
     extract(year FROM d)::int       AS year,
     extract(month FROM d)::int      AS month,
     to_char(d, 'Mon')               AS month_name,
     date_trunc('month', d)::date    AS month_start
-FROM generate_series(date '2010-01-01', date '2026-09-30', interval '1 day') AS d;
+FROM bounds,
+     generate_series(
+         date_trunc('month', first_date),
+         date_trunc('month', last_date) + interval '1 month - 1 day',
+         interval '1 day'
+     ) AS d;
 ALTER TABLE mart.dim_date ADD PRIMARY KEY (date);
 
 -- ---------------------------------------------------------------- facts
