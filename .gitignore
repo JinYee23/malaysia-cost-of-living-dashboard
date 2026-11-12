@@ -10,8 +10,8 @@ __pycache__/
 data/raw/*
 !data/raw/.gitkeep
 
-# Large fact table exports: rebuilt by the pipeline
-outputs/csv/fact_*.csv
+# Large export, too big for GitHub: rebuilt by src/export_csv.py
+outputs/csv/fact_prices.csv
 
 # Personal learning notes
 .vibe-wise/
